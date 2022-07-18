@@ -21,11 +21,6 @@ def ConfigHE(n_exp, scale_exp, qi_n):
   s_relin_key = HE.to_bytes_relin_key()
   s_rotate_key = HE.to_bytes_rotate_key()
 
-  # s_context_b64 = base64.b64encode(s_context)
-  # s_public_key_b64 = base64.b64encode(s_public_key)
-  # s_relin_key_b64 = base64.b64encode(s_relin_key)
-  # s_rotate_key_b64 = base64.b64encode(s_rotate_key)
-
   zip_buffer = io.BytesIO()
   with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
     for file_name, data in [
@@ -44,22 +39,8 @@ def ConfigHE(n_exp, scale_exp, qi_n):
   HE_buffer = zip_buffer
 
   return HE, HE_buffer
-  
-def main():
-  print('Enter n_exp [13]:')
-  n_exp = int(input() or 13)
 
-  print('Enter scale_exp [30]:')
-  scale_exp = int(input() or 30)
-
-  print('Enter qi_n [3]:')
-  qi_n = int(input() or 3)
-
-  HE, HE_buffer = ConfigHE(n_exp, scale_exp, qi_n)
-
-  #return send_file(zip_buffer, attachment_filename='filename.zip', as_attachment=True)
-  #return { "ctx": len(s_context_b64), "pub": len(s_public_key_b64), "relin": len(s_relin_key_b64), "rotate": len(s_rotate_key_b64) }
-
+def ConfigHEServer(HE_buffer):
   try:
     files = {'file': HE_buffer}
     response = requests.post(f'{base_url}/configure-ckks', files=files)
@@ -70,6 +51,64 @@ def main():
     json = response.json()
     message = json['message']
     print(f"Response message: [{message}]")
+  except Exception as ex:
+    print(f"Request exception: {ex}") 
+
+def main():
+  print('Enter n_exp [13]:')
+  n_exp = int(input() or 13)
+
+  print('Enter scale_exp [30]:')
+  scale_exp = int(input() or 30)
+
+  print('Enter qi_n [3]:')
+  qi_n = int(input() or 3)
+
+  print('Enter number of random frac\'s sent to server [5]:')
+  frac_n = int(input() or 5)
+
+  print('Enter seed [1012976]:')
+  seed_n = int(input() or 1012976)
+
+  HE, HE_buffer = ConfigHE(n_exp, scale_exp, qi_n)
+
+  ConfigHEServer(HE_buffer)
+
+  np.random.seed(seed_n)
+  np.set_printoptions(suppress=True)
+
+  x = np.around(np.random.uniform(0, 1000, frac_n), 2)
+  print(f"Vector 1: {x}")
+  s_cx = HE.encrypt(x).to_bytes()
+  b64_cx = base64.b64encode(s_cx).decode()
+
+  y = np.around(np.random.uniform(0, 1000, frac_n), 2)
+  print(f"Vector 2: {y}")
+  s_cy = HE.encrypt(y).to_bytes()
+  b64_cy = base64.b64encode(s_cy).decode()
+
+  try:
+    json_data = {"n1": b64_cx, "n2": b64_cy}
+    response = requests.post(f'{base_url}/compute-add', json=json_data)
+    if response.status_code != 200:
+      print(f"Response status: {response.status_code}, exiting...")
+      return
+
+    json = response.json()
+    message = json['message']
+
+    b64_cres = json['result']
+    b64_res = base64.b64decode(b64_cres)
+    cres = PyCtxt(pyfhel=HE, bytestring=b64_res)
+    res = HE.decryptFrac(cres)
+
+    print(f"Response message: [{message}]")
+
+    trunc_res = res[:frac_n]
+    d = np.column_stack((x + y, trunc_res))
+    print(f"Comparison")
+    print(d)
+
   except Exception as ex:
     print(f"Request exception: {ex}")
 
