@@ -6,8 +6,8 @@ import zipfile
 import numpy as np
 from Pyfhel import Pyfhel, PyCtxt
 
-#base_url = 'http://he-poc.herokuapp.com'
-base_url = 'http://127.0.0.1:5007'
+base_url = 'http://he-poc.herokuapp.com'
+#base_url = 'http://127.0.0.1:5007'
 
 def ConfigHE(n_exp, scale_exp, qi_n):
   HE = Pyfhel()
@@ -64,53 +64,60 @@ def main():
   print('Enter qi_n [3]:')
   qi_n = int(input() or 3)
 
-  print('Enter number of random frac\'s sent to server [5]:')
-  frac_n = int(input() or 5)
-
-  print('Enter seed [1012976]:')
-  seed_n = int(input() or 1012976)
-
   HE, HE_buffer = ConfigHE(n_exp, scale_exp, qi_n)
 
   ConfigHEServer(HE_buffer)
+  
+  while True:  
+    print('Enter number of random frac\'s sent to server [5]:')
+    frac_n = int(input() or 5)
 
-  np.random.seed(seed_n)
-  np.set_printoptions(suppress=True)
+    print('Enter seed [1012976]:')
+    seed_n = int(input() or 1012976)
 
-  x = np.around(np.random.uniform(0, 1000, frac_n), 2)
-  print(f"Vector 1: {x}")
-  s_cx = HE.encrypt(x).to_bytes()
-  b64_cx = base64.b64encode(s_cx).decode()
+    np.random.seed(seed_n)
+    np.set_printoptions(suppress=True)
 
-  y = np.around(np.random.uniform(0, 1000, frac_n), 2)
-  print(f"Vector 2: {y}")
-  s_cy = HE.encrypt(y).to_bytes()
-  b64_cy = base64.b64encode(s_cy).decode()
+    x = np.around(np.random.uniform(0, 1000, frac_n), 2)
+    print(f"Vector 1: {x}")
+    s_cx = HE.encrypt(x).to_bytes()
+    b64_cx = base64.b64encode(s_cx).decode()
 
-  try:
-    json_data = {"n1": b64_cx, "n2": b64_cy}
-    response = requests.post(f'{base_url}/compute-add', json=json_data)
-    if response.status_code != 200:
-      print(f"Response status: {response.status_code}, exiting...")
-      return
+    y = np.around(np.random.uniform(0, 1000, frac_n), 2)
+    print(f"Vector 2: {y}")
+    s_cy = HE.encrypt(y).to_bytes()
+    b64_cy = base64.b64encode(s_cy).decode()
 
-    json = response.json()
-    message = json['message']
+    try:
+      json_data = {"n1": b64_cx, "n2": b64_cy}
+      response = requests.post(f'{base_url}/compute-add', json=json_data)
+      if response.status_code != 200:
+        print(f"Response status: {response.status_code}, exiting...")
+        return
 
-    b64_cres = json['result']
-    b64_res = base64.b64decode(b64_cres)
-    cres = PyCtxt(pyfhel=HE, bytestring=b64_res)
-    res = HE.decryptFrac(cres)
+      json = response.json()
+      message = json['message']
 
-    print(f"Response message: [{message}]")
+      b64_cres = json['result']
+      b64_res = base64.b64decode(b64_cres)
+      cres = PyCtxt(pyfhel=HE, bytestring=b64_res)
+      res = HE.decryptFrac(cres)
 
-    trunc_res = res[:frac_n]
-    d = np.column_stack((x + y, trunc_res))
-    print(f"Comparison")
-    print(d)
+      print(f"Response message: [{message}]")
 
-  except Exception as ex:
-    print(f"Request exception: {ex}")
+      trunc_res = res[:frac_n]
+      d = np.column_stack((x + y, trunc_res))
+      print(f"Comparison")
+      print(d)
+
+    except Exception as ex:
+      print(f"Request exception: {ex}")
+  
+    print("Again? [Y/n]")
+    again = input() or "y"
+
+    if again == "n":
+        break
 
 if __name__ == "__main__":
   main()
