@@ -1,4 +1,4 @@
-# MONOREPO: Homomorphic Encryption POC (client)
+# Homomorphic Encryption POC (client)
 
 POC client for homomorphic encryption - console app
 
