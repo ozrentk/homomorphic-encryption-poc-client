@@ -31,7 +31,7 @@ def ConfigHE(n_exp, scale_exp, qi_n):
       zip_file.writestr(file_name, data.getvalue())
 
   cwd = os.getcwd()
-  print(cwd)
+  print(f"Saving keys to {cwd}")
   with open(f'{cwd}/keys.zip', 'wb') as f:
     f.write(zip_buffer.getvalue())
   
